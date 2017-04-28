@@ -7,7 +7,7 @@ public interface DelayQueue {
 
 	/**
 	 * 
-	 * @return Returns the name of the queue
+	 * @return 消息队列名
 	 */
 	public String getName();
 	
@@ -41,7 +41,7 @@ public interface DelayQueue {
 	public List<Message> pop(int messageCount, int wait, TimeUnit unit) throws  Exception;
 	
 	/**
-	 * Provides a peek into the queue without taking messages out.
+	 * 获取但不移除已经超时的Message，如果没有，将返回空。
 	 * @param messageCount number of messages to be peeked.
 	 * @return List of peeked messages.
 	 * @see #pop(int, int, TimeUnit)
@@ -99,4 +99,6 @@ public interface DelayQueue {
 	 * Truncates the entire queue.  Use with caution!
 	 */
 	public void clear();
+
+	String push(Message message);
 }

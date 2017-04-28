@@ -8,6 +8,7 @@ public class Message {
 	private String payload;
 	private long timeout;
 	private int priority;
+	private long createTime;
 
 	public String getId() {
 		return id;
@@ -36,15 +37,24 @@ public class Message {
 	public int getPriority() {
 		return priority;
 	}
+
 	public void setTimeout(long time, TimeUnit unit) {
 		this.timeout = TimeUnit.MILLISECONDS.convert(time, unit);
 	}
-	
+
 	public void setPriority(int priority) {
-		if(priority < 0 || priority > 99){
+		if (priority < 0 || priority > 99) {
 			throw new IllegalArgumentException("prioirty MUST be between 0 and 99 (inclusive)");
 		}
 		this.priority = priority;
+	}
+
+	public long getCreateTime() {
+		return createTime;
+	}
+
+	public void setCreateTime(long createTime) {
+		this.createTime = createTime;
 	}
 
 	/**
@@ -79,5 +89,5 @@ public class Message {
 	public String toString() {
 		return "Message [id=" + id + ", payload=" + payload + ", timeout=" + timeout + ", priority=" + priority + "]";
 	}
-	
+
 }
