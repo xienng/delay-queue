@@ -8,7 +8,7 @@ public class Message {
 	private String payload;
 	private long timeout;
 	private int priority;
-	private long createTime;
+	private long createTime=System.currentTimeMillis();
 
 	public String getId() {
 		return id;
@@ -53,9 +53,6 @@ public class Message {
 		return createTime;
 	}
 
-	public void setCreateTime(long createTime) {
-		this.createTime = createTime;
-	}
 
 	/**
 	 * equals 与hashCode由IDE自动生成
