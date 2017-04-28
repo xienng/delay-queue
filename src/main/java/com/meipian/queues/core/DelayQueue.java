@@ -1,7 +1,6 @@
 package com.meipian.queues.core;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public interface DelayQueue {
@@ -32,12 +31,14 @@ public interface DelayQueue {
 	 * @param wait Amount of time to wait if there are no messages in queue
 	 * @param unit Time unit for the wait period
 	 * @return messages.  Can be less than the messageCount if there are fewer messages available than the message count.  If the popped messages are not acknowledge in a timely manner, they are pushed back into the queue.
+	 * @throws InterruptedException 
+	 * @throws Exception 
 	 * @see #peek(int)
 	 * @see #ack(String)
 	 * @see #getUnackTime()
 	 *  
 	 */
-	public List<Message> pop(int messageCount, int wait, TimeUnit unit);
+	public List<Message> pop(int messageCount, int wait, TimeUnit unit) throws  Exception;
 	
 	/**
 	 * Provides a peek into the queue without taking messages out.
@@ -93,12 +94,6 @@ public interface DelayQueue {
 	 */
 	public long size();
 
-	/**
-	 * 
-	 * @return Map of shard name to the # of messages in the shard.
-	 * @see #size()
-	 */
-	public Map<String, Map<String, Long>> shardSizes();
 	
 	/**
 	 * Truncates the entire queue.  Use with caution!
