@@ -2,10 +2,7 @@ package com.meipian.queues.redis;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -101,7 +98,6 @@ public class RedisDelayQueue implements DelayQueue {
 				else {
 					available.await(delay, TimeUnit.MILLISECONDS);
 				}
-
 				return message;
 			}
 		} catch (IOException e) {
