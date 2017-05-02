@@ -3,13 +3,19 @@ package com.meipian.queues.redis;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.hamcrest.core.IsEqual;
+
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.meipian.queues.core.DelayQueue;
@@ -38,11 +44,14 @@ public class RedisDelayQueue implements DelayQueue {
 
 	private String messageStoreKey;
 
-	private ExecutorService executorService;
-
 	private String realQueueName;
 
-	public RedisDelayQueue(String redisKeyPrefix, String queueName, JedisCluster jedisCluster, long defaultTimeout) {
+	private DelayQueueProcessListener delayQueueProcessListener;
+
+	private volatile boolean isEmpty = true;
+
+	public RedisDelayQueue(String redisKeyPrefix, String queueName, JedisCluster jedisCluster, int unackTime,
+			DelayQueueProcessListener delayQueueProcessListener) {
 		om = new ObjectMapper();
 		om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		om.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
@@ -52,8 +61,10 @@ public class RedisDelayQueue implements DelayQueue {
 		om.disable(SerializationFeature.INDENT_OUTPUT);
 		this.redisKeyPrefix = redisKeyPrefix;
 		this.messageStoreKey = redisKeyPrefix + ".MESSAGE." + queueName;
+		this.unackTime = unackTime;
 		this.jedisCluster = jedisCluster;
 		realQueueName = redisKeyPrefix + ".QUEUE." + queueName;
+		this.delayQueueProcessListener = delayQueueProcessListener;
 	}
 
 	public String getQueueName() {
@@ -61,7 +72,7 @@ public class RedisDelayQueue implements DelayQueue {
 	}
 
 	@Override
-	public String push(Message message) {
+	public boolean push(Message message) {
 		if (message.getTimeout() > MAX_TIMEOUT) {
 			throw new RuntimeException("Maximum delay time should not be exceed one year");
 		}
@@ -71,44 +82,41 @@ public class RedisDelayQueue implements DelayQueue {
 			double priority = message.getPriority() / 100;
 			double score = Long.valueOf(System.currentTimeMillis() + message.getTimeout()).doubleValue() + priority;
 			jedisCluster.zadd(realQueueName, score, message.getId());
-			return message.getId();
+			delayQueueProcessListener.pushCallback(message);
+			isEmpty = false;
+			return true;
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();
 		}
-		return null;
+		return false;
 
 	}
 
-	@Override
-	public Message peek() throws InterruptedException {
-		lock.lockInterruptibly();
-		try {
+	public void listen() {
+		while (true) {
 			String id = peekId();
 			if (id == null) {
-				available.await();
-			} else {
-				String json = jedisCluster.hget(messageStoreKey, id);
+				continue;
+			}
+			String json = jedisCluster.hget(messageStoreKey, id);
+			try {
 				Message message = om.readValue(json, Message.class);
 				if (message == null) {
-					return null;
+					continue;
 				}
-				long delay = System.currentTimeMillis() - message.getCreateTime() + message.getTimeout();
-				if (delay <= 0)
-					return message;
-				else {
-					available.await(delay, TimeUnit.MILLISECONDS);
+				long delay = message.getCreateTime() + message.getTimeout() - System.currentTimeMillis();
+				System.out.println(delay);
+				if (delay <= 0) {
+					delayQueueProcessListener.peekCallback(message);
+				} else {
+					LockSupport.parkNanos(this, TimeUnit.NANOSECONDS.convert(delay, TimeUnit.MILLISECONDS));
+					delayQueueProcessListener.peekCallback(message);
 				}
-				return message;
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
-		} finally {
-			available.signal();
-			lock.unlock();
-		}
-		return null;
 
+		}
 	}
 
 	@Override
@@ -198,12 +206,28 @@ public class RedisDelayQueue implements DelayQueue {
 	}
 
 	private String peekId() {
-		double max = Long.valueOf(System.currentTimeMillis() + MAX_TIMEOUT).doubleValue();
-		Set<String> scanned = jedisCluster.zrangeByScore(realQueueName, 0, max, 0, 1);
-		if (scanned.size() > 0) {
-			String messageId = scanned.toArray()[0].toString();
-			setUnackTimeout(messageId, unackTime);
-			return messageId;
+		try {
+			if (!isEmpty) {
+				System.out.println("xxxxx");
+				lock.lockInterruptibly();
+				double max = Long.valueOf(System.currentTimeMillis() + MAX_TIMEOUT).doubleValue();
+				Set<String> scanned = jedisCluster.zrangeByScore(realQueueName, 0, max, 0, 1);
+				if (scanned.size() > 0) {
+					String messageId = scanned.toArray()[0].toString();
+					jedisCluster.zrem(realQueueName, messageId);
+					setUnackTimeout(messageId, unackTime);
+					if (size() == 0) {
+						isEmpty = true;
+					}
+					available.signal();
+					lock.unlock();
+					return messageId;
+				}
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			available.signal();
+			lock.unlock();
 		}
 		return null;
 	}
