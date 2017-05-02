@@ -13,40 +13,12 @@ public interface DelayQueue {
 	
 	/**
 	 * 
-	 * @return Time in milliseconds before the messages that are popped and not acknowledge are pushed back into the queue.
+	 * @return 当消息已经被取出，等待确认的时间。等待确认时间过去后将被自动删除
 	 * @see #ack(String)
 	 */
 	public int getUnackTime();
 	
-	/**
-	 * 
-	 * @param messages messages to be pushed onto the queue
-	 * @return Returns the list of message ids
-	 */
-	public List<String> push(List<Message> messages);
 	
-	/**
-	 * 
-	 * @param messageCount number of messages to be popped out of the queue.
-	 * @param wait Amount of time to wait if there are no messages in queue
-	 * @param unit Time unit for the wait period
-	 * @return messages.  Can be less than the messageCount if there are fewer messages available than the message count.  If the popped messages are not acknowledge in a timely manner, they are pushed back into the queue.
-	 * @throws InterruptedException 
-	 * @throws Exception 
-	 * @see #peek(int)
-	 * @see #ack(String)
-	 * @see #getUnackTime()
-	 *  
-	 */
-	public List<Message> pop(int messageCount, int wait, TimeUnit unit) throws  Exception;
-	
-	/**
-	 * 获取但不移除已经超时的Message，如果没有，将返回空。
-	 * @param messageCount number of messages to be peeked.
-	 * @return List of peeked messages.
-	 * @see #pop(int, int, TimeUnit)
-	 */
-	public List<Message> peek(int messageCount);
 	
 	/**
 	 * Provides an acknowledgement for the message.  Once ack'ed the message is removed from the queue forever.
@@ -72,12 +44,7 @@ public interface DelayQueue {
 	 */
 	public boolean setTimeout(String messageId, long timeout);
 	
-	/**
-	 * 
-	 * @param messageId  Remove the message from the queue
-	 * @return true if the message id was found and removed.  False otherwise.
-	 */
-	public boolean remove(String messageId);
+
 	
 	
 	/**
@@ -96,9 +63,16 @@ public interface DelayQueue {
 
 	
 	/**
-	 * Truncates the entire queue.  Use with caution!
+	 *   清除整个消息队列
 	 */
 	public void clear();
 
 	String push(Message message);
+
+	/**
+	 * 获取最新一个但不删除延迟的数据。未达到指定的延迟时间将被阻塞，如果没有，将返回null
+	 * @return
+	 * @throws InterruptedException
+	 */
+	Message peek() throws InterruptedException;
 }

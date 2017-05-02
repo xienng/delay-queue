@@ -1,6 +1,6 @@
 package com.meipian.redis.test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -17,6 +17,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 public class TestRedisDelayQueue {
 	JedisCluster jedisCluster = null;
+	RedisDelayQueue queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000);
 
 	@Before
 	public void init() {
@@ -34,21 +35,25 @@ public class TestRedisDelayQueue {
 		pool.setNumTestsPerEvictionRun(100);
 		pool.setMaxWaitMillis(5000);
 		pool.setTestOnBorrow(true);
-		jedisCluster = new JedisCluster(nodes, 1000, 1000, 100,null, pool); // maxAttempt必须调大
+		jedisCluster = new JedisCluster(nodes, 1000, 1000, 100, null, pool); // maxAttempt必须调大
 		jedisCluster.set("test", "test");
-		System.out.println(jedisCluster.get("test"));
+		queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000);
 		assertEquals("test", jedisCluster.get("test"));
 	}
 
 	@Test
-	public void testCreate() {
-		RedisDelayQueue queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000);
+	public void testCreate() throws InterruptedException {
 		Message message = new Message();
 		message.setId("1234");
 		message.setPayload("test");
 		message.setPriority(0);
 		message.setTimeout(10000);
 		queue.push(message);
+		message = queue.peek();
+		System.out.println(message.toString());
+		queue.ack("1234");
+		message = queue.get("1234");
+		assertNull(null, message);
 	}
 
 }
