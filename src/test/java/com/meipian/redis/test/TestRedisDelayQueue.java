@@ -29,13 +29,14 @@ public class TestRedisDelayQueue {
 		nodes.add(new HostAndPort(ip, 7705));
 		nodes.add(new HostAndPort(ip, 7706));
 		JedisPoolConfig pool = new JedisPoolConfig();
-		pool.setMaxTotal(10);
+		pool.setMaxTotal(100);
 		pool.setFairness(false);
 		pool.setNumTestsPerEvictionRun(100);
 		pool.setMaxWaitMillis(5000);
 		pool.setTestOnBorrow(true);
-		jedisCluster = new JedisCluster(nodes, 1000, 1000, 10,null, pool); // maxAttempt必须调大
+		jedisCluster = new JedisCluster(nodes, 1000, 1000, 100,null, pool); // maxAttempt必须调大
 		jedisCluster.set("test", "test");
+		System.out.println(jedisCluster.get("test"));
 		assertEquals("test", jedisCluster.get("test"));
 	}
 
