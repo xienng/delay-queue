@@ -68,11 +68,8 @@ public interface DelayQueue {
 	public void clear();
 
 	boolean push(Message message);
-
-//	/**
-//	 * 获取最新一个但不删除延迟的数据。未达到指定的延迟时间将被阻塞，如果没有，将返回null
-//	 * @return
-//	 * @throws InterruptedException
-//	 */
-//	Message peek() throws InterruptedException;
+    /**
+     * 开启消息队列监听
+     */
+	public void listen();
 }
