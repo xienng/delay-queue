@@ -57,8 +57,8 @@ public class RedisDelayQueue implements DelayQueue {
 
 	private long defaultTimeout;
 
-	public RedisDelayQueue(String redisKeyPrefix, String queueName, JedisCluster jedisCluster) {
-		ObjectMapper om = new ObjectMapper();
+	public RedisDelayQueue(String redisKeyPrefix, String queueName, JedisCluster jedisCluster, long defaultTimeout) {
+		om = new ObjectMapper();
 		om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		om.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
 		om.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false);
@@ -69,7 +69,8 @@ public class RedisDelayQueue implements DelayQueue {
 		this.messageStoreKey = redisKeyPrefix + ".MESSAGE." + queueName;
 		this.jedisCluster = jedisCluster;
 		this.prefetchedIds = new LinkedBlockingQueue<>();
-		realQueueName = getQueueName(queueName);
+		realQueueName = redisKeyPrefix + ".QUEUE." + queueName;
+		this.defaultTimeout = defaultTimeout;
 	}
 
 	public String getQueueName() {
@@ -85,7 +86,6 @@ public class RedisDelayQueue implements DelayQueue {
 				jedisCluster.hset(messageStoreKey, message.getId(), json);
 				double priority = message.getPriority() / 100;
 				double score = Long.valueOf(System.currentTimeMillis() + message.getTimeout()).doubleValue() + priority;
-				String realQueueName = getQueueName(queueName);
 				jedisCluster.zadd(realQueueName, score, message.getId());
 				messageIds.add(message.getId());
 			} catch (JsonProcessingException e) {
@@ -96,22 +96,22 @@ public class RedisDelayQueue implements DelayQueue {
 		return messageIds;
 
 	}
+
 	@Override
 	public String push(Message message) {
-			try {
-				String json = om.writeValueAsString(message);
-				jedisCluster.hset(messageStoreKey, message.getId(), json);
-				double priority = message.getPriority() / 100;
-				double score = Long.valueOf(System.currentTimeMillis() + message.getTimeout()).doubleValue() + priority;
-				String realQueueName = getQueueName(queueName);
-				jedisCluster.zadd(realQueueName, score, message.getId());
-				return  message.getId();
-			} catch (JsonProcessingException e) {
-				e.printStackTrace();
-			}
-			return null;
-
+		try {
+			String json = om.writeValueAsString(message);
+			jedisCluster.hset(messageStoreKey, message.getId(), json);
+			double priority = message.getPriority() / 100;
+			double score = Long.valueOf(System.currentTimeMillis() + message.getTimeout()).doubleValue() + priority;
+			jedisCluster.zadd(realQueueName, score, message.getId());
+			return message.getId();
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
 		}
+		return null;
+
+	}
 
 	@Override
 	public List<Message> peek(final int messageCount) {
@@ -303,7 +303,6 @@ public class RedisDelayQueue implements DelayQueue {
 	public boolean remove(String messageId) {
 		String unackShardKey = getUnackQueueName(queueName);
 		jedisCluster.zrem(unackShardKey, messageId);
-		String realQueueName = getQueueName(queueName);
 		Long removed = jedisCluster.zrem(realQueueName, messageId);
 		Long msgRemoved = jedisCluster.hdel(messageStoreKey, messageId);
 		if (removed > 0 && msgRemoved > 0) {
@@ -332,12 +331,11 @@ public class RedisDelayQueue implements DelayQueue {
 
 	@Override
 	public long size() {
-		return jedisCluster.zcard(getQueueName(queueName));
+		return jedisCluster.zcard(realQueueName);
 	}
 
 	@Override
 	public void clear() {
-		String realQueueName = getQueueName(queueName);
 		String unackShard = getUnackQueueName(queueName);
 		jedisCluster.del(realQueueName);
 		jedisCluster.del(unackShard);
@@ -392,10 +390,6 @@ public class RedisDelayQueue implements DelayQueue {
 		}
 	}
 
-
-	private String getQueueName(String queueName) {
-		return redisKeyPrefix + ".QUEUE." + queueName;
-	}
 
 	private String getUnackQueueName(String queueName) {
 		return redisKeyPrefix + ".UNACK." + queueName;
