@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.meipian.queues.core.Message;
+import com.meipian.queues.redis.DelayQueueProcessListener;
 import com.meipian.queues.redis.RedisDelayQueue;
 
 import redis.clients.jedis.HostAndPort;
@@ -17,7 +18,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 public class TestRedisDelayQueue {
 	JedisCluster jedisCluster = null;
-	RedisDelayQueue queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000);
+	RedisDelayQueue queue = null;
 
 	@Before
 	public void init() {
@@ -37,23 +38,39 @@ public class TestRedisDelayQueue {
 		pool.setTestOnBorrow(true);
 		jedisCluster = new JedisCluster(nodes, 1000, 1000, 100, null, pool); // maxAttempt必须调大
 		jedisCluster.set("test", "test");
-		queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000);
-		assertEquals("test", jedisCluster.get("test"));
+		queue = new RedisDelayQueue("com.meipian", "delayqueue", jedisCluster, 60 * 1000,
+				new DelayQueueProcessListener() {
+					@Override
+					public void pushCallback(Message message) {
+
+					}
+
+					@Override
+					public void peekCallback(Message message) {
+						System.out.println("message----->" + message);
+						queue.ack(message.getId());//确认操作。将会删除消息
+					}
+
+					@Override
+					public void ackCallback(Message message) {
+					}
+				});
+
 	}
 
 	@Test
 	public void testCreate() throws InterruptedException {
 		Message message = new Message();
-		message.setId("1234");
-		message.setPayload("test");
-		message.setPriority(0);
-		message.setTimeout(10000);
-		queue.push(message);
-		message = queue.peek();
-		System.out.println(message.toString());
-		queue.ack("1234");
-		message = queue.get("1234");
-		assertNull(null, message);
+		for (int i = 0; i < 10; i++) {
+			message.setId(i + "");
+			message.setPayload("test");
+			message.setPriority(0);
+			message.setTimeout(3000);
+			queue.push(message);
+		}
+		// message = queue.peek();
+		// queue.ack("1234");
+		queue.listen();
 	}
 
 }
